@@ -1,0 +1,8 @@
+# Ignore compiler toolchain
+toolchain/
+
+# Ignore simulation outputs and trace files
+m5out/
+trace_hart_0.dasm
+scratch/*.elf
+
