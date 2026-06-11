@@ -1,0 +1,6 @@
+[submodule "cva6"]
+	path = cva6
+	url = https://github.com/openhwgroup/cva6.git
+[submodule "gem5"]
+	path = gem5
+	url = https://github.com/gem5/gem5.git
