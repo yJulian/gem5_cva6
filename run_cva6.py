@@ -9,6 +9,10 @@ import argparse
 parser = argparse.ArgumentParser(description="Run CVA6 RTL core in gem5")
 parser.add_argument("--binary", type=str, default="scratch/sum.elf",
                     help="Path to the RISC-V bare-metal ELF binary")
+parser.add_argument("--trace", action="store_true",
+                    help="Enable VCD tracing of CVA6 RTL core internal signals")
+parser.add_argument("--trace-file", type=str, default="m5out/cva6_trace.vcd",
+                    help="Filename/path for the output VCD trace file")
 args = parser.parse_args()
 
 # Create the system
@@ -30,6 +34,9 @@ system.system_port = system.membus.cpu_side_ports
 
 # Instantiate our custom CVA6 RTL CPU
 system.cpu = CVA6RtlCPU()
+if args.trace:
+    system.cpu.trace_enable = True
+    system.cpu.trace_file = args.trace_file
 
 # Connect CVA6 instruction and data ports to the crossbar
 system.cpu.inst_port = system.membus.cpu_side_ports
