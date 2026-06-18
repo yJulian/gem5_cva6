@@ -3,4 +3,4 @@
 	url = git@github.com:yJulian/cva6.git
 [submodule "gem5"]
 	path = gem5
-	url = git@github.com:yJulian/gem5_cva6.git
+	url = git@github.com:yJulian/gem5.git
