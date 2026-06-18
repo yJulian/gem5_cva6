@@ -56,7 +56,39 @@ root = Root(full_system=False, system=system)
 print("Instantiating SimObjects...")
 m5.instantiate()
 
-print(f"Starting CVA6 RTL Simulation with binary: {args.binary}")
-exit_event = m5.simulate()
+# Run simulation loop checking for tohost write
+tohost_addr = 0x80001000
+max_ticks = 500000000000 # 500 billion ticks timeout (25 million cycles)
+tick_step = 100000000 # Run 100M ticks at a time (5000 cycles) to minimize host loop overhead
+current_tick = 0
 
-print(f"Simulation ended at tick {m5.curTick()} because: {exit_event.getCause()}")
+exit_cause = "Maximum simulation ticks reached"
+tohost_val = 0
+
+while current_tick < max_ticks:
+    exit_event = m5.simulate(tick_step)
+    current_tick = m5.curTick()
+    
+    # Read tohost
+    tohost_bytes = system.physProxy.read(tohost_addr, 8)
+    tohost_val = int.from_bytes(tohost_bytes, 'little')
+    
+    if tohost_val != 0:
+        exit_cause = f"tohost written with value {tohost_val}"
+        break
+        
+    if exit_event.getCause() != "simulate() limit reached":
+        exit_cause = exit_event.getCause()
+        break
+
+print("\n============================================")
+if tohost_val == 1:
+    print(f"CVA6 Simulation finished! tohost = {tohost_val} (exit code = 0)")
+    print("SUCCESS: Program completed successfully!")
+elif tohost_val != 0:
+    print(f"CVA6 Simulation finished! tohost = {tohost_val} (exit code = {tohost_val >> 1 if tohost_val > 1 else -1})")
+    print(f"FAILURE: program exited with tohost code {tohost_val}")
+else:
+    print(f"Simulation ended because: {exit_cause}")
+print(f"Total simulated ticks: {current_tick}")
+print("============================================\n")

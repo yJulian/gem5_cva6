@@ -4,16 +4,16 @@
 _start:
     # Initialize registers
     li t0, 1         # Start value (1)
-    li t1, 9         # End value (9)
+    li t1, 100000     # End value (100000)
     li t2, 0         # Sum accumulator
 
 loop:
     add t2, t2, t0   # sum = sum + t0
     addi t0, t0, 1   # t0 = t0 + 1
-    ble t0, t1, loop # if t0 <= 9, loop
+    ble t0, t1, loop # if t0 <= 100000, loop
 
-    # Check if sum is correct (45)
-    li t3, 45
+    # Check if sum is correct (5000050000)
+    li t3, 5000050000
     beq t2, t3, success
 
 failure:
