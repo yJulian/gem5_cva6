@@ -5,4 +5,4 @@ toolchain/
 m5out/
 trace_hart_0.dasm
 scratch/*.elf
-
+build/
