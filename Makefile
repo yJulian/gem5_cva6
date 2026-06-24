@@ -29,7 +29,7 @@ LINKER_SCRIPT = scratch/link.ld
 # gem5 targets and paths
 GEM5_OPT = build/RISCV/gem5.opt
 
-.PHONY: all toolchain submodules verilate elf gem5 run-rtl run-gem5 clean clean-gem5 clean-cva6 clean-elf help run-test-accel accel-elf accel-so
+.PHONY: all toolchain submodules verilate elf gem5 run-rtl run-rtl-l2 run-gem5 clean clean-gem5 clean-cva6 clean-elf help run-test-accel accel-elf accel-so
 
 # Default target builds everything
 all: toolchain submodules verilate elf gem5
@@ -69,6 +69,11 @@ gem5: verilate
 run-rtl: elf gem5
 	@echo "Running gem5 simulation with CVA6 RTL Core..."
 	./$(GEM5_OPT) configs/cva6/run_rtl.py --binary $(ELF_OUT)
+
+# 6a. Run RTL with L2 Cache Target: runs co-simulation using CVA6 and gem5 L2 Cache
+run-rtl-l2: elf gem5
+	@echo "Running gem5 simulation with CVA6 RTL Core and L2 Cache..."
+	./$(GEM5_OPT) configs/cva6/run_rtl_l2.py --binary $(ELF_OUT)
 
 # 6b. Run RTL Accel Target: runs co-simulation with CVA6 and the FIFO Accelerator
 run-test-accel: accel-elf accel-so gem5
@@ -118,6 +123,7 @@ help:
 	@echo "  make elf           - Compile the bare-metal assembly test in $(ELF_SRC) to ELF"
 	@echo "  make gem5          - Build the gem5.opt simulator binary with SCons"
 	@echo "  make run-rtl       - Run the gem5 co-simulation using the Verilated CVA6 core"
+	@echo "  make run-rtl-l2    - Run the gem5 co-simulation with CVA6 RTL core and L2 cache"
 	@echo "  make run-gem5      - Run the standard gem5 TimingSimpleCPU simulation"
 	@echo "  make clean         - Delete all built files and build directories"
 	@echo "  make help          - Display this help message"
