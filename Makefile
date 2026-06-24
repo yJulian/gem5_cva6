@@ -22,12 +22,14 @@ RISCV_GCC = $(RISCV)/bin/riscv-none-elf-gcc
 # Bare-metal test binary configuration
 ELF_SRC = scratch/sum.S
 ELF_OUT = scratch/sum.elf
+ACCEL_SRC = scratch/test_accel.S
+ACCEL_ELF = scratch/test_accel.elf
 LINKER_SCRIPT = scratch/link.ld
 
 # gem5 targets and paths
 GEM5_OPT = build/RISCV/gem5.opt
 
-.PHONY: all toolchain submodules verilate elf gem5 run-rtl run-gem5 clean clean-gem5 clean-cva6 clean-elf help
+.PHONY: all toolchain submodules verilate elf gem5 run-rtl run-gem5 clean clean-gem5 clean-cva6 clean-elf help run-test-accel accel-elf accel-so
 
 # Default target builds everything
 all: toolchain submodules verilate elf gem5
@@ -68,6 +70,21 @@ run-rtl: elf gem5
 	@echo "Running gem5 simulation with CVA6 RTL Core..."
 	./$(GEM5_OPT) configs/cva6/run_rtl.py --binary $(ELF_OUT)
 
+# 6b. Run RTL Accel Target: runs co-simulation with CVA6 and the FIFO Accelerator
+run-test-accel: accel-elf accel-so gem5
+	@echo "Running gem5 simulation with CVA6 and FIFO Accelerator..."
+	./$(GEM5_OPT) configs/cva6/run_accel.py --binary $(ACCEL_ELF)
+
+accel-elf: $(ACCEL_ELF)
+
+$(ACCEL_ELF): $(ACCEL_SRC) $(LINKER_SCRIPT) toolchain
+	@echo "Compiling RISC-V bare-metal accelerator test binary..."
+	$(RISCV_GCC) -march=rv64imafdc -mabi=lp64d -nostartfiles -T $(LINKER_SCRIPT) $(ACCEL_SRC) -o $(ACCEL_ELF)
+
+accel-so:
+	@echo "Building accelerator shared library..."
+	$(MAKE) -C accelerator
+
 # 7. Run gem5 Target: runs standard timing simulation in gem5 (no RTL)
 run-gem5: elf gem5
 	@echo "Running gem5 simulation with TimingSimpleCPU..."
@@ -88,7 +105,8 @@ clean-cva6:
 
 clean-elf:
 	@echo "Cleaning RISC-V test binaries..."
-	rm -f $(ELF_OUT)
+	rm -f $(ELF_OUT) $(ACCEL_ELF)
+	$(MAKE) -C accelerator clean
 
 # 9. Help Target: prints usage instructions
 help:
