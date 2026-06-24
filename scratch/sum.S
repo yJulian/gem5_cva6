@@ -4,7 +4,7 @@
 _start:
     # Initialize registers
     li t0, 1         # Start value (1)
-    li t1, 100000     # End value (100000)
+    li t1, 1000000    # End value (1,000,000)
     li t2, 0         # Sum accumulator
 
 loop:
@@ -12,8 +12,8 @@ loop:
     addi t0, t0, 1   # t0 = t0 + 1
     ble t0, t1, loop # if t0 <= 100000, loop
 
-    # Check if sum is correct (5000050000)
-    li t3, 5000050000
+    # Check if sum is correct (500000500000)
+    li t3, 500000500000
     beq t2, t3, success
 
 failure:
