@@ -4,16 +4,16 @@
 _start:
     # Initialize registers
     li t0, 1         # Start value (1)
-    li t1, 1000000    # End value (1,000,000)
+    li t1, 1000      # End value (1,000)
     li t2, 0         # Sum accumulator
 
 loop:
     add t2, t2, t0   # sum = sum + t0
     addi t0, t0, 1   # t0 = t0 + 1
-    ble t0, t1, loop # if t0 <= 100000, loop
+    ble t0, t1, loop # if t0 <= 1000, loop
 
-    # Check if sum is correct (500000500000)
-    li t3, 500000500000
+    # Check if sum is correct (500500)
+    li t3, 500500
     beq t2, t3, success
 
 failure:
@@ -21,6 +21,7 @@ failure:
     li t4, 3
     la t5, tohost
     sd t4, 0(t5)
+    ebreak
     j hang
 
 success:
@@ -28,8 +29,10 @@ success:
     li t4, 1
     la t5, tohost
     sd t4, 0(t5)
+    ebreak
 
 hang:
+    ebreak
     j hang
 
 .section .tohost

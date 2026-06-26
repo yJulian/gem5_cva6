@@ -6,19 +6,27 @@ _start:
     li t0, 0x80010000
     li t1, 0x1111222233334444
     sd t1, 0(t0)
+    fence
     li t1, 0x5555666677778888
     sd t1, 8(t0)
+    fence
     li t1, 0x9999aaaabbbbcccc
     sd t1, 16(t0)
+    fence
     li t1, 0xddddeeeeffff0000
     sd t1, 24(t0)
+    fence
 
     # Initialize destination data to zero at 0x80020000
     li t0, 0x80020000
     sd zero, 0(t0)
+    fence
     sd zero, 8(t0)
+    fence
     sd zero, 16(t0)
+    fence
     sd zero, 24(t0)
+    fence
 
     # Initialize MMIO register pointers
     li a0, 0x10000          # Accel Base Address
@@ -28,12 +36,16 @@ _start:
 
     # Configure DMA registers
     sd a1, 8(a0)            # SRC_ADDR = 0x80010000
+    fence
     sd a2, 16(a0)           # DST_ADDR = 0x80020000
+    fence
     sd a3, 24(a0)           # LEN = 4
+    fence
 
     # Start DMA transfer (write 1 to CTRL)
     li t2, 1
     sd t2, 0(a0)            # CTRL.START = 1
+    fence
 
     # Force write buffer to flush to MMIO
     fence io, io
@@ -46,6 +58,7 @@ wait_loop:
     # Clear DONE bit
     li t2, 4
     sd t2, 0(a0)            # CTRL.DONE = 1 to clear
+    fence
 
     # Verify the results at 0x80020000
     li t0, 0x80020000
@@ -71,6 +84,8 @@ success:
     li t4, 1
     la t5, tohost
     sd t4, 0(t5)
+    fence
+    ebreak
     j hang
 
 failure:
@@ -78,8 +93,11 @@ failure:
     li t4, 3
     la t5, tohost
     sd t4, 0(t5)
+    fence
+    ebreak
 
 hang:
+    ebreak
     j hang
 
 .section .tohost
