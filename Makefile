@@ -12,6 +12,9 @@
 # Parallel compilation jobs
 JOBS ?= $(shell nproc)
 
+# Checkpoint support for verilated RTL core (0 = disabled, 1 = enabled)
+SAVABLE ?= 0
+
 # Path to the RISC-V GCC toolchain (portable)
 RISCV_DIR = $(CURDIR)/toolchain/xpack-riscv-none-elf-gcc-14.2.0-1
 export RISCV = $(RISCV_DIR)
@@ -24,12 +27,16 @@ ELF_SRC = scratch/sum.S
 ELF_OUT = scratch/sum.elf
 ACCEL_SRC = scratch/test_accel.S
 ACCEL_ELF = scratch/test_accel.elf
+M5OPS_SRC = scratch/test_m5ops.S
+M5OPS_ELF = scratch/test_m5ops.elf
+CHECKPOINT_SRC = scratch/test_checkpoint.S
+CHECKPOINT_ELF = scratch/test_checkpoint.elf
 LINKER_SCRIPT = scratch/link.ld
 
 # gem5 targets and paths
 GEM5_OPT = build/RISCV/gem5.opt
 
-.PHONY: all toolchain submodules verilate elf gem5 run-rtl run-rtl-l2 run-accel-l2 run-gem5 clean clean-gem5 clean-cva6 clean-elf help run-test-accel accel-elf accel-so
+.PHONY: all toolchain submodules verilate elf gem5 run-rtl run-rtl-l2 run-accel-l2 run-gem5 clean clean-gem5 clean-cva6 clean-elf help run-test-accel accel-elf accel-so run-m5ops run-checkpoint restore-checkpoint
 
 # Default target builds everything
 all: toolchain submodules verilate elf gem5
@@ -51,14 +58,22 @@ toolchain:
 # 3. Verilate Target: compiles/verilates CVA6 RTL core using Verilator
 verilate: toolchain submodules
 	@echo "Verilating CVA6 core RTL..."
-	$(MAKE) -C cva6 verilate-core RISCV=$(RISCV) NUM_JOBS=$(JOBS) TRACE_FAST=1
+	$(MAKE) -C cva6 verilate-core RISCV=$(RISCV) NUM_JOBS=$(JOBS) TRACE_FAST=1 SAVABLE=$(SAVABLE)
 
-# 4. Elf Target: builds the bare-metal RISC-V binary from sum.S
-elf: $(ELF_OUT)
+# 4. Elf Target: builds the bare-metal RISC-V binaries
+elf: $(ELF_OUT) $(M5OPS_ELF) $(CHECKPOINT_ELF)
 
 $(ELF_OUT): $(ELF_SRC) $(LINKER_SCRIPT) toolchain
 	@echo "Compiling RISC-V bare-metal test binary..."
 	$(RISCV_GCC) -march=rv64imafdc -mabi=lp64d -nostartfiles -T $(LINKER_SCRIPT) $(ELF_SRC) -o $(ELF_OUT)
+
+$(M5OPS_ELF): $(M5OPS_SRC) $(LINKER_SCRIPT) toolchain
+	@echo "Compiling RISC-V bare-metal m5ops test binary..."
+	$(RISCV_GCC) -march=rv64imafdc -mabi=lp64d -nostartfiles -Iscratch -T $(LINKER_SCRIPT) $(M5OPS_SRC) -o $(M5OPS_ELF)
+
+$(CHECKPOINT_ELF): $(CHECKPOINT_SRC) $(LINKER_SCRIPT) toolchain
+	@echo "Compiling RISC-V bare-metal checkpoint test binary..."
+	$(RISCV_GCC) -march=rv64imafdc -mabi=lp64d -nostartfiles -Iscratch -T $(LINKER_SCRIPT) $(CHECKPOINT_SRC) -o $(CHECKPOINT_ELF)
 
 # 5. gem5 Target: compiles the gem5 simulator with CVA6 CPU SimObject support
 gem5: verilate
@@ -74,6 +89,21 @@ run-rtl: elf gem5
 run-rtl-l2: elf gem5
 	@echo "Running gem5 simulation with CVA6 RTL Core and L2 Cache..."
 	./$(GEM5_OPT) configs/cva6/run_rtl_l2.py --binary $(ELF_OUT)
+
+# 6d. Run RTL m5ops test: runs co-simulation using CVA6 with m5ops
+run-m5ops: elf gem5
+	@echo "Running gem5 simulation with CVA6 RTL Core and m5ops..."
+	./$(GEM5_OPT) configs/cva6/run_rtl.py --binary $(M5OPS_ELF)
+
+# 6e. Run RTL Checkpoint Save/Restore verification
+run-checkpoint: elf gem5
+	@echo "Running gem5 simulation with CVA6 to create a checkpoint..."
+	rm -rf m5out/cpt.*
+	./$(GEM5_OPT) configs/cva6/run_rtl.py --binary $(CHECKPOINT_ELF)
+
+restore-checkpoint: gem5
+	@echo "Running gem5 simulation restoring from the latest checkpoint..."
+	./$(GEM5_OPT) configs/cva6/run_rtl.py --binary $(CHECKPOINT_ELF) --checkpoint-dir m5out/cpt.*
 
 # 6b. Run RTL Accel Target: runs co-simulation with CVA6 and the FIFO Accelerator
 run-test-accel: accel-elf accel-so gem5
@@ -115,7 +145,7 @@ clean-cva6:
 
 clean-elf:
 	@echo "Cleaning RISC-V test binaries..."
-	rm -f $(ELF_OUT) $(ACCEL_ELF)
+	rm -f $(ELF_OUT) $(ACCEL_ELF) $(M5OPS_ELF) $(CHECKPOINT_ELF)
 	$(MAKE) -C accelerator clean
 
 # 9. Help Target: prints usage instructions

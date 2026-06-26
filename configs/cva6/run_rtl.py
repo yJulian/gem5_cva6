@@ -13,10 +13,13 @@ parser.add_argument("--trace", action="store_true",
                     help="Enable VCD tracing of CVA6 RTL core internal signals")
 parser.add_argument("--trace-file", type=str, default="m5out/cva6_trace.vcd",
                     help="Filename/path for the output VCD trace file")
+parser.add_argument("-r", "--checkpoint-dir", type=str, default=None,
+                    help="Checkpoint directory to restore from")
 args = parser.parse_args()
 
 # Create the system
 system = System()
+system.m5ops_base = 0x80002000
 
 # Set up clock and voltage domains
 system.clk_domain = SrcClockDomain()
@@ -54,7 +57,11 @@ root = Root(full_system=False, system=system)
 
 # Initialize the SimObjects and build the memory image
 print("Instantiating SimObjects...")
-m5.instantiate()
+if args.checkpoint_dir:
+    print(f"Restoring from checkpoint: {args.checkpoint_dir}")
+    m5.instantiate(args.checkpoint_dir)
+else:
+    m5.instantiate()
 
 # Run simulation loop checking for tohost write
 tohost_addr = 0x80001000
@@ -77,6 +84,14 @@ while current_tick < max_ticks:
         exit_cause = f"tohost written with value {tohost_val}"
         break
         
+    if exit_event.getCause() == "checkpoint":
+        import os
+        cpt_dir = os.path.join("m5out", f"cpt.{current_tick}")
+        print(f"Taking checkpoint at tick {current_tick} to {cpt_dir}...")
+        m5.checkpoint(cpt_dir)
+        print("Checkpoint done.")
+        continue
+
     if exit_event.getCause() != "simulate() limit reached":
         exit_cause = exit_event.getCause()
         break

@@ -17,6 +17,7 @@ args = parser.parse_args()
 
 # Create the system
 system = System()
+system.m5ops_base = 0x80002000
 
 # Set up clock and voltage domains
 system.clk_domain = SrcClockDomain()
