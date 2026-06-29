@@ -1,5 +1,5 @@
 # Copyright 2026 Antigravity
-# Description: gem5 configuration script to attempt booting Linux on the custom CVA6 RTL Core.
+# Description: gem5 configuration script to attempt booting Linux on TimingSimpleCPU.
 
 import argparse
 import sys
@@ -21,18 +21,7 @@ requires(isa_required=ISA.RISCV)
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(
-    description="Attempt to boot a minimal BusyBox Linux distro on the CVA6 RTL core in gem5 FS mode"
-)
-parser.add_argument(
-    "--trace",
-    action="store_true",
-    help="Enable VCD tracing of CVA6 RTL core internal signals",
-)
-parser.add_argument(
-    "--trace-file",
-    type=str,
-    default="m5out/cva6_trace.vcd",
-    help="Filename/path for the output VCD trace file",
+    description="Attempt to boot a minimal BusyBox Linux distro on TimingSimpleCPU"
 )
 parser.add_argument(
     "--mem-size",
@@ -43,10 +32,10 @@ parser.add_argument(
 args = parser.parse_args()
 
 # Create the top-level System
-system = System()
+system = RiscvSystem()
 system.mem_mode = "timing"
 
-# Set up clock and voltage domains (Matching the 50MHz CVA6 RTL frequency)
+# Set up clock and voltage domains
 system.voltage_domain = VoltageDomain(voltage="1.0V")
 system.clk_domain = SrcClockDomain(
     clock="2GHz", voltage_domain=system.voltage_domain
@@ -62,10 +51,8 @@ system.iobus = IOXBar()
 # Connect system port to the crossbar (required by gem5)
 system.system_port = system.membus.cpu_side_ports
 
-# Instantiate our custom CVA6 RTL CPU
-# Note: Clint and Plic autogeneration code requires system.cpu to be an iterable list
-system.cpu = [CVA6RtlCPU()]
-system.cpu[0].cpu_id = 0
+# Instantiate TimingSimpleCPU
+system.cpu = [TimingSimpleCPU()]
 
 # Set up BaseCPU parameters for ThreadContext and Interrupt routing
 system.cpu[0].mmu = RiscvMMU()
@@ -73,13 +60,9 @@ system.cpu[0].interrupts = [RiscvInterrupts()]
 system.cpu[0].isa = [RiscvISA()]
 system.cpu[0].decoder = [RiscvDecoder(isa=system.cpu[0].isa[0])]
 
-if args.trace:
-    system.cpu[0].trace_enable = True
-    system.cpu[0].trace_file = args.trace_file
-
-# Connect CVA6 instruction and data ports to the main coherent bus
-system.cpu[0].inst_port = system.membus.cpu_side_ports
-system.cpu[0].data_port = system.membus.cpu_side_ports
+# Connect CPU instruction and data ports to the main coherent bus
+system.cpu[0].icache_port = system.membus.cpu_side_ports
+system.cpu[0].dcache_port = system.membus.cpu_side_ports
 
 # Set up physical memory (RAM) and connect it to the main bus
 system.mem_ctrl = SimpleMemory(range=system.mem_ranges[0], latency="10ns")
@@ -87,6 +70,13 @@ system.mem_ctrl.port = system.membus.mem_side_ports
 
 # Set up the HiFive Platform devices (PLIC, CLINT, UART console, and PCIe)
 system.platform = HiFive()
+
+# PMA checker configuration
+uncacheable_range = [
+    *system.platform._on_chip_ranges(),
+    *system.platform._off_chip_ranges(),
+]
+system.cpu[0].mmu.pma_checker = PMAChecker(uncacheable=uncacheable_range)
 
 # RTCCLK (Set to 100MHz for simulation time progression)
 system.platform.rtc = RiscvRTC(frequency=Frequency("100MHz"))
@@ -133,12 +123,14 @@ system.platform.setNumCores(1)
 # Cache line size setting required for system components
 system.cache_line_size = 64
 
-# Use the custom patched bootloader/kernel binary
+# Obtain standard minimal BusyBox Linux workload (Kernel + Bootloader combined ELF)
+linux_resource = obtain_resource(
+    "riscv-bootloader-vmlinux-5.10", resource_version="1.0.0"
+)
 system.workload = RiscvLinux()
-system.workload.object_file = "/home/julian/gem5_cva6/scratch/riscv-bootloader-vmlinux-5.10-patched"
+system.workload.object_file = linux_resource.get_local_path()
 
-
-# Custom DTB (Device Tree Blob) generator for CVA6 RTL Core
+# Custom DTB (Device Tree Blob) generator
 def generateMemNode(state, mem_range):
     node = FdtNode(f"memory@{int(mem_range.start):x}")
     node.append(FdtPropertyStrings("device_type", ["memory"]))
@@ -151,7 +143,6 @@ def generateMemNode(state, mem_range):
     )
     return node
 
-
 def generateDtb(system):
     state = FdtState(addr_cells=2, size_cells=2, cpu_cells=1)
     root = FdtNode("/")
@@ -159,18 +150,15 @@ def generateDtb(system):
     root.append(state.sizeCellsProperty())
     root.appendCompatible(["riscv-virtio"])
 
-    # Add memory node
     for mem_range in system.mem_ranges:
         root.append(generateMemNode(state, mem_range))
 
-    # Merge platform device tree nodes (PLIC, CLINT, UART, etc.)
     for node in system.platform.generateDeviceTree(state):
         if node.get_name() == root.get_name():
             root.merge(node)
         else:
             root.append(node)
 
-    # Locate 'cpus' container and insert CVA6 CPU 0
     cpus_node = None
     for sub in root.subdata:
         if isinstance(sub, FdtNode) and sub.get_name() == "cpus":
@@ -179,22 +167,18 @@ def generateDtb(system):
 
     if not cpus_node:
         cpus_node = FdtNode("cpus")
-        cpus_node.append(FdtPropertyWords("#address-cells", [1]))
-        cpus_node.append(FdtPropertyWords("#size-cells", [0]))
         cpus_node.append(FdtPropertyWords("timebase-frequency", [10000000]))
         root.append(cpus_node)
 
-    # Construct CVA6 CPU Node manually since CVA6RtlCPU lacks autogeneration helpers
     cpu_node = FdtNode("cpu@0")
     cpu_node.append(FdtPropertyStrings("device_type", ["cpu"]))
     cpu_node.append(FdtPropertyWords("reg", [0]))
     cpu_node.append(FdtPropertyStrings("mmu-type", ["riscv,sv39"]))
     cpu_node.append(FdtPropertyStrings("status", ["okay"]))
     cpu_node.append(FdtPropertyStrings("riscv,isa", ["rv64imafdc"]))
-    cpu_node.append(FdtPropertyWords("clock-frequency", [2000000000]))
+    cpu_node.append(FdtPropertyWords("clock-frequency", [50000000]))
     cpu_node.appendCompatible(["riscv"])
 
-    # Nested interrupt controller
     int_node = FdtNode("interrupt-controller")
     int_state = FdtState(interrupt_cells=1)
     phandle = int_state.phandle(system.cpu[0])
@@ -207,7 +191,6 @@ def generateDtb(system):
     cpu_node.append(int_node)
     cpus_node.append(cpu_node)
 
-    # Chosen node for bootloader and kernel boot arguments
     node = FdtNode("chosen")
     node.append(FdtPropertyStrings("bootargs", [system.workload.command_line]))
     node.append(FdtPropertyStrings("stdout-path", ["/soc/uart@10000000"]))
@@ -222,24 +205,13 @@ def generateDtb(system):
     fdt.writeDtsFile(path.join(m5.options.outdir, "device.dts"))
     fdt.writeDtbFile(path.join(m5.options.outdir, "device.dtb"))
 
-
-# Initialize device tree generation and arguments
 system.workload.dtb_addr = 0x87E00000
 system.workload.command_line = "console=ttyS0 root=/dev/vda rw"
 generateDtb(system)
 system.workload.dtb_filename = path.join(m5.options.outdir, "device.dtb")
 
-# Instantiate simulation Root
 root = Root(full_system=True, system=system)
 
-print("\n==========================================================================")
-print("Simulation Ready to Start!")
-print("Connecting CVA6 RTL Core to BusyBox Linux workload.")
-print("Note: The current CVA6 C++ co-simulation wrapper ties interrupt pins to 0.")
-print("The Linux kernel will start booting but will hang when attempting to")
-print("calibrate timers or configure the PLIC/CLINT due to lack of interrupts.")
-print("==========================================================================\n")
-
-print("Beginning gem5 Full System simulation with CVA6 RTL CPU...")
+print("Beginning gem5 Full System simulation with TimingSimpleCPU...")
 m5.instantiate()
 m5.simulate()

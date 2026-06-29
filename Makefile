@@ -18,6 +18,7 @@ export RISCV = $(RISCV_DIR)
 
 # Compiler prefix
 RISCV_GCC = $(RISCV)/bin/riscv-none-elf-gcc
+verilator             ?= verilator
 
 # Bare-metal test binary configuration
 ELF_SRC = scratch/sum.S
@@ -49,7 +50,7 @@ toolchain:
 	fi
 
 # 3. Verilate Target: compiles/verilates CVA6 RTL core using Verilator
-verilate: toolchain submodules
+verilate: toolchain # submodules
 	@echo "Verilating CVA6 core RTL..."
 	$(MAKE) -C cva6 verilate-core RISCV=$(RISCV) NUM_JOBS=$(JOBS) TRACE_FAST=1 verilator="verilator $(CURDIR)/verilator_config_extra.vlt"
 

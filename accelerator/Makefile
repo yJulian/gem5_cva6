@@ -1,7 +1,7 @@
 # Makefile for compiling the SystemVerilog FIFO DMA Accelerator into a shared library (.so)
 
 VERILATOR = verilator
-VERILATOR_ROOT = /usr/local/share/verilator
+VERILATOR_ROOT ?= /usr/local/share/verilator
 CXX = g++
 CXXFLAGS = -O3 -shared -fPIC -std=c++17
 
