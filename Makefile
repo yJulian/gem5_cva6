@@ -51,7 +51,7 @@ toolchain:
 # 3. Verilate Target: compiles/verilates CVA6 RTL core using Verilator
 verilate: toolchain submodules
 	@echo "Verilating CVA6 core RTL..."
-	$(MAKE) -C cva6 verilate-core RISCV=$(RISCV) NUM_JOBS=$(JOBS) TRACE_FAST=1
+	$(MAKE) -C cva6 verilate-core RISCV=$(RISCV) NUM_JOBS=$(JOBS) TRACE_FAST=1 verilator="verilator $(CURDIR)/verilator_config_extra.vlt"
 
 # 4. Elf Target: builds the bare-metal RISC-V binary from sum.S
 elf: $(ELF_OUT)
