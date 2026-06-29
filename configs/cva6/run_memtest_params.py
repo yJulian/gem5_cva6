@@ -143,8 +143,8 @@ system.mem_ctrl.port = system.membus.mem_side_ports
 # Load the compiled bare-metal binary
 system.workload = RiscvBareMetal(bootloader=elf_out)
 
-# Instantiate the simulation root
-root = Root(full_system=False, system=system)
+# Instantiate the simulation root (full_system=True needed for BareMetal workload with standard CPU)
+root = Root(full_system=True, system=system)
 
 # Initialize the SimObjects and build the memory image
 print("Instantiating SimObjects...")
