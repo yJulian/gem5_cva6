@@ -16,3 +16,5 @@ accelerator/obj_dir/
 cva_verilate/work-ver-core
 
 scratch/riscv-bootloader-*
+
+*.log

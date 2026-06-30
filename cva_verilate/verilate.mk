@@ -42,8 +42,8 @@ verilate-core:
 		-I/usr/local/share/verilator/include \
 		-I/usr/local/share/verilator/include/vltstd \
 		-Iwork-ver-core \
-		-I../gem5/src/cpu/cva6 \
+		-I../../gem5/src/cpu/cva6 \
 		$(if $(TRACE_FAST),-DVM_TRACE=1) \
 		$(if $(TRACE_COMPACT),-DVM_TRACE=1 -DVM_TRACE_FST=1) \
-		../gem5/src/cpu/cva6/cva6_rtl_core_impl.cc \
+		../../gem5/src/cpu/cva6/cva6_rtl_core_impl.cc \
 		-Wl,--whole-archive work-ver-core/libVcva6_top.a work-ver-core/libverilated.a -Wl,--no-whole-archive
