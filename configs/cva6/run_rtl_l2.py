@@ -27,7 +27,7 @@ system.clk_domain.clock = '50MHz' # CVA6 RTL clock frequency
 system.clk_domain.voltage_domain = VoltageDomain()
 
 # Set up the physical memory range (256MB starting at 0x80000000)
-system.mem_ranges = [AddrRange(0x80000000, size='256MB')]
+system.mem_ranges = [AddrRange(0x80000000, size='256MiB')]
 
 # Create a system crossbar (interconnect)
 system.membus = SystemXBar()

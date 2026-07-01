@@ -57,6 +57,7 @@ success:
     li t4, 1
     la t5, tohost
     sd t4, 0(t5)
+    fence
     ebreak
 
 hang:
@@ -68,6 +69,7 @@ failure:
     li t4, 3
     la t5, tohost
     sd t4, 0(t5)
+    fence
     ebreak
     j hang
 

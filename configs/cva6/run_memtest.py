@@ -147,8 +147,6 @@ while current_tick < max_ticks:
     tohost_bytes = system.physProxy.read(tohost_addr, 8)
     tohost_val = int.from_bytes(tohost_bytes, 'little')
     
-    print(f"Simulation ended at Tick: {current_tick}, tohost = {tohost_val}")
-
     if tohost_val != 0:
         exit_cause = f"tohost written with value {tohost_val}"
         break
