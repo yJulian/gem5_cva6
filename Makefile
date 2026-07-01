@@ -24,10 +24,20 @@ GEM5_OPT = build/RISCV/gem5.opt
 # Default target builds everything
 all: toolchain submodules verilate elf pcie-elf gem5
 
-# 1. Submodules Target: initializes/updates all git submodules
+# 1. Submodules Target: initializes/updates all git submodules and links custom source directories
 submodules:
 	@echo "Checking/updating git submodules..."
 	git submodule update --init --recursive
+	@echo "Linking custom source directories into gem5..."
+	mkdir -p gem5/src/cpu gem5/src/test_objects
+	rm -rf gem5/src/cpu/rtl gem5/src/test_objects/fifo
+	cp -as $(CURDIR)/src/cpu/rtl gem5/src/cpu/
+	cp -as $(CURDIR)/src/test_objects/fifo gem5/src/test_objects/
+	@if [ -d .git/modules/gem5 ]; then \
+		mkdir -p .git/modules/gem5/info; \
+		grep -qxF '/src/cpu/rtl/' .git/modules/gem5/info/exclude 2>/dev/null || echo '/src/cpu/rtl/' >> .git/modules/gem5/info/exclude; \
+		grep -qxF '/src/test_objects/fifo/' .git/modules/gem5/info/exclude 2>/dev/null || echo '/src/test_objects/fifo/' >> .git/modules/gem5/info/exclude; \
+	fi
 
 # 2. Toolchain Target: installs RISC-V GCC toolchain if not present
 toolchain:

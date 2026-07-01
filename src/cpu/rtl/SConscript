@@ -1,0 +1,7 @@
+# Copyright 2026 Antigravity
+# Description: SConscript for RTL CPU memory interfaces.
+
+Import('*')
+
+Source('axi/mem_iface_axi.cc')
+Source('sram/mem_iface_sram.cc')
