@@ -21,11 +21,13 @@ FAIL_ACCEL_SRC = $(CURDIR)/fail_test_accel.S
 FAIL_ACCEL_ELF = $(CURDIR)/fail_test_accel.elf
 MEMTEST_SRC = $(CURDIR)/memtest.S
 MEMTEST_ELF = $(CURDIR)/memtest.elf
+PCIE_SRC = $(CURDIR)/pcie_test.S
+PCIE_ELF = $(CURDIR)/pcie_test.elf
 LINKER_SCRIPT = $(CURDIR)/link.ld
 
-.PHONY: all elf accel-elf fail-test-elf fail-test-accel-elf memtest-elf clean-elf
+.PHONY: all elf accel-elf fail-test-elf fail-test-accel-elf memtest-elf pcie-test-elf clean-elf
 
-all: elf accel-elf fail-test-elf fail-test-accel-elf memtest-elf
+all: elf accel-elf fail-test-elf fail-test-accel-elf memtest-elf pcie-test-elf
 
 elf: $(ELF_OUT)
 
@@ -57,6 +59,12 @@ $(MEMTEST_ELF): $(MEMTEST_SRC) $(LINKER_SCRIPT)
 	@echo "Compiling RISC-V bare-metal memtest binary with NUM_WORDS=$(NUM_WORDS)..."
 	$(RISCV_GCC) -march=rv64imafdc -mabi=lp64d -nostartfiles -T $(LINKER_SCRIPT) -DNUM_WORDS=$(NUM_WORDS) $(MEMTEST_SRC) -o $(MEMTEST_ELF)
 
+pcie-test-elf: $(PCIE_ELF)
+
+$(PCIE_ELF): $(PCIE_SRC) $(LINKER_SCRIPT)
+	@echo "Compiling RISC-V bare-metal PCIe test binary..."
+	$(RISCV_GCC) -march=rv64imafdc -mabi=lp64d -nostartfiles -T $(LINKER_SCRIPT) $(PCIE_SRC) -o $(PCIE_ELF)
+
 clean-elf:
 	@echo "Cleaning RISC-V test binaries..."
-	rm -f $(ELF_OUT) $(ACCEL_ELF) $(FAIL_SUM_ELF) $(FAIL_ACCEL_ELF) $(MEMTEST_ELF)
+	rm -f $(ELF_OUT) $(ACCEL_ELF) $(FAIL_SUM_ELF) $(FAIL_ACCEL_ELF) $(MEMTEST_ELF) $(PCIE_ELF)

@@ -43,7 +43,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 # Create the top-level System
-system = System()
+system = RiscvSystem()
 system.mem_mode = "timing"
 
 # Set up clock and voltage domains (Matching the 50MHz CVA6 RTL frequency)
@@ -135,7 +135,7 @@ system.cache_line_size = 64
 
 # Use the custom patched bootloader/kernel binary
 system.workload = RiscvLinux()
-system.workload.object_file = "/home/julian/gem5_cva6/scratch/riscv-bootloader-vmlinux-5.10-patched"
+#system.workload.object_file = "/home/julian/gem5_cva6/scratch/riscv-bootloader-vmlinux-5.10-patched"
 
 
 # Custom DTB (Device Tree Blob) generator for CVA6 RTL Core
@@ -210,7 +210,8 @@ def generateDtb(system):
     # Chosen node for bootloader and kernel boot arguments
     node = FdtNode("chosen")
     node.append(FdtPropertyStrings("bootargs", [system.workload.command_line]))
-    node.append(FdtPropertyStrings("stdout-path", ["/soc/uart@10000000"]))
+    #node.append(FdtPropertyStrings("stdout-path", ["/soc/uart@10000000"]))
+    node.append(FdtPropertyStrings("stdout-path", ["/platform/uart@10013000"]))
     root.append(node)
 
     fdt = Fdt()

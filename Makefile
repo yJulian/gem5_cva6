@@ -14,14 +14,15 @@ ELF_OUT = $(CURDIR)/scratch/sum.elf
 ACCEL_ELF = $(CURDIR)/scratch/test_accel.elf
 FAIL_SUM_ELF = $(CURDIR)/scratch/fail_test_sum.elf
 FAIL_ACCEL_ELF = $(CURDIR)/scratch/fail_test_accel.elf
+PCIE_ELF = $(CURDIR)/scratch/pcie_test.elf
 
 # gem5 targets and paths
 GEM5_OPT = build/RISCV/gem5.opt
 
-.PHONY: all toolchain submodules verilate elf gem5 run-rtl run-rtl-l2 run-accel-l2 run-gem5 clean clean-gem5 clean-cva6 clean-elf help run-test-accel accel-elf accel-so fail-test-elf fail-test-accel-elf run-fail-test run-fail-accel
+.PHONY: all toolchain submodules verilate elf pcie-elf gem5 run-rtl run-rtl-l2 run-pcie-test run-test-accel run-accel-l2 run-gem5 clean clean-gem5 clean-cva6 clean-elf help run-fail-test run-fail-accel
 
 # Default target builds everything
-all: toolchain submodules verilate elf gem5
+all: toolchain submodules verilate elf pcie-elf gem5
 
 # 1. Submodules Target: initializes/updates all git submodules
 submodules:
@@ -62,6 +63,10 @@ verilate: toolchain
 elf: toolchain
 	$(MAKE) -C scratch elf RISCV=$(RISCV)
 
+# 4a. PCIe Elf Target: builds the bare-metal PCIe test RISC-V binary
+pcie-elf: toolchain
+	$(MAKE) -C scratch pcie-test-elf RISCV=$(RISCV)
+
 # 5. gem5 Target: compiles the gem5 simulator with CVA6 CPU SimObject support
 gem5: verilate
 	@echo "Building gem5 RISC-V opt binary (includes CVA6 RTL CPU)..."
@@ -77,12 +82,17 @@ run-rtl-l2: elf gem5
 	@echo "Running gem5 simulation with CVA6 RTL Core and L2 Cache..."
 	./$(GEM5_OPT) configs/cva6/run_rtl_l2.py --binary $(ELF_OUT)
 
-# 6b. Run RTL Accel Target: runs co-simulation with CVA6 and the FIFO Accelerator
+# 6b. Run PCIe Test Target: runs co-simulation using CVA6 and a PCIe Device (CopyEngine)
+run-pcie-test: pcie-elf gem5
+	@echo "Running gem5 simulation with CVA6 RTL Core and PCIe Device (CopyEngine)..."
+	./$(GEM5_OPT) configs/cva6/run_pcie_test.py --binary $(PCIE_ELF)
+
+# 6c. Run RTL Accel Target: runs co-simulation with CVA6 and the FIFO Accelerator
 run-test-accel: accel-elf accel-so gem5
 	@echo "Running gem5 simulation with CVA6 and FIFO Accelerator..."
 	./$(GEM5_OPT) configs/cva6/run_accel.py --binary $(ACCEL_ELF)
 
-# 6c. Run RTL Accel with L2 Cache Target: runs co-simulation with CVA6, L2 Cache, and FIFO Accelerator
+# 6d. Run RTL Accel with L2 Cache Target: runs co-simulation with CVA6, L2 Cache, and FIFO Accelerator
 run-accel-l2: accel-elf accel-so gem5
 	@echo "Running gem5 simulation with CVA6, L2 Cache, and FIFO Accelerator..."
 	./$(GEM5_OPT) configs/cva6/run_accel_l2.py --binary $(ACCEL_ELF)
@@ -100,12 +110,12 @@ fail-test-elf: toolchain
 fail-test-accel-elf: toolchain
 	$(MAKE) -C scratch fail-test-accel-elf RISCV=$(RISCV)
 
-# 6d. Run Intentional Failure Test (sum): verifies FAILURE path for sum test
+# 6e. Run Intentional Failure Test (sum): verifies FAILURE path for sum test
 run-fail-test: fail-test-elf gem5
 	@echo "Running INTENTIONAL FAILURE TEST (sum) -- Expected: FAILURE (tohost=3)"
 	./$(GEM5_OPT) configs/cva6/run_fail_test.py --binary $(FAIL_SUM_ELF)
 
-# 6e. Run Intentional Failure Test (accel): verifies FAILURE path for accelerator test
+# 6f. Run Intentional Failure Test (accel): verifies FAILURE path for accelerator test
 run-fail-accel: fail-test-accel-elf accel-so gem5
 	@echo "Running INTENTIONAL FAILURE TEST (accel) -- Expected: FAILURE (tohost=3)"
 	./$(GEM5_OPT) configs/cva6/run_fail_accel.py --binary $(FAIL_ACCEL_ELF)
@@ -138,9 +148,11 @@ help:
 	@echo "  make toolchain     - Download and install the portable RISC-V GCC toolchain"
 	@echo "  make verilate      - Verilate the CVA6 core RTL using Verilator"
 	@echo "  make elf           - Compile the bare-metal assembly test in scratch/sum.S to ELF"
+	@echo "  make pcie-elf      - Compile the bare-metal PCIe test in scratch/pcie_test.S to ELF"
 	@echo "  make gem5          - Build the gem5.opt simulator binary with SCons"
 	@echo "  make run-rtl       - Run the gem5 co-simulation using the Verilated CVA6 core"
 	@echo "  make run-rtl-l2    - Run the gem5 co-simulation with CVA6 RTL core and L2 cache"
+	@echo "  make run-pcie-test - Run the gem5 co-simulation with CVA6 RTL core and PCIe Device"
 	@echo "  make run-accel-l2  - Run the gem5 co-simulation with CVA6 RTL core, L2 cache, and FIFO Accelerator"
 	@echo "  make run-fail-test  - Run the intentional FAILURE test for sum (verifies failure detection)"
 	@echo "  make run-fail-accel - Run the intentional FAILURE test for accel (verifies failure detection)"
