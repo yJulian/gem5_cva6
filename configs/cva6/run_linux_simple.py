@@ -1,0 +1,217 @@
+# Copyright 2026 Antigravity
+# Description: gem5 configuration script to attempt booting Linux on TimingSimpleCPU.
+
+import argparse
+import sys
+import os
+from os import path
+
+# Import classic gem5 objects
+import m5
+from m5.objects import *
+from m5.util import fatal, warn
+from m5.util.fdthelper import *
+
+from gem5.utils.requires import requires
+from gem5.isas import ISA
+from gem5.resources.resource import obtain_resource
+
+# Ensure we are using the RISC-V target
+requires(isa_required=ISA.RISCV)
+
+# Parse command line arguments
+parser = argparse.ArgumentParser(
+    description="Attempt to boot a minimal BusyBox Linux distro on TimingSimpleCPU"
+)
+parser.add_argument(
+    "--mem-size",
+    type=str,
+    default="512MiB",
+    help="Physical memory size (e.g., 512MiB, 1GiB)",
+)
+args = parser.parse_args()
+
+# Create the top-level System
+system = RiscvSystem()
+system.mem_mode = "timing"
+
+# Set up clock and voltage domains
+system.voltage_domain = VoltageDomain(voltage="1.0V")
+system.clk_domain = SrcClockDomain(
+    clock="2GHz", voltage_domain=system.voltage_domain
+)
+
+# Set up physical memory range starting at 0x80000000
+system.mem_ranges = [AddrRange(0x80000000, size=args.mem_size)]
+
+# Create crossbars (interconnects)
+system.membus = SystemXBar()
+system.iobus = IOXBar()
+
+# Connect system port to the crossbar (required by gem5)
+system.system_port = system.membus.cpu_side_ports
+
+# Instantiate TimingSimpleCPU
+system.cpu = [TimingSimpleCPU()]
+
+# Set up BaseCPU parameters for ThreadContext and Interrupt routing
+system.cpu[0].mmu = RiscvMMU()
+system.cpu[0].interrupts = [RiscvInterrupts()]
+system.cpu[0].isa = [RiscvISA()]
+system.cpu[0].decoder = [RiscvDecoder(isa=system.cpu[0].isa[0])]
+
+# Connect CPU instruction and data ports to the main coherent bus
+system.cpu[0].icache_port = system.membus.cpu_side_ports
+system.cpu[0].dcache_port = system.membus.cpu_side_ports
+
+# Set up physical memory (RAM) and connect it to the main bus
+system.mem_ctrl = SimpleMemory(range=system.mem_ranges[0], latency="10ns")
+system.mem_ctrl.port = system.membus.mem_side_ports
+
+# Set up the HiFive Platform devices (PLIC, CLINT, UART console, and PCIe)
+system.platform = HiFive()
+
+# PMA checker configuration
+uncacheable_range = [
+    *system.platform._on_chip_ranges(),
+    *system.platform._off_chip_ranges(),
+]
+system.cpu[0].mmu.pma_checker = PMAChecker(uncacheable=uncacheable_range)
+
+# RTCCLK (Set to 100MHz for simulation time progression)
+system.platform.rtc = RiscvRTC(frequency=Frequency("100MHz"))
+system.platform.clint.int_pin = system.platform.rtc.int_pin
+
+# Connect the platform's PCI/IO system to the incoherent I/O bus
+system.iobus.cpu_side_ports = system.platform.pci_host.up_request_port()
+system.iobus.mem_side_ports = system.platform.pci_host.up_response_port()
+
+system.platform.pci_bus.cpu_side_ports = (
+    system.platform.pci_host.down_request_port()
+)
+system.platform.pci_bus.default = (
+    system.platform.pci_host.down_response_port()
+)
+system.platform.pci_bus.config_error_port = (
+    system.platform.pci_host.config_error.pio
+)
+
+# Set up VirtIO MMIO disk controller using BusyBox image
+image = CowDiskImage(child=RawDiskImage(read_only=True), read_only=False)
+disk_resource = obtain_resource("riscv-disk-img", resource_version="1.0.0")
+image.child.image_file = disk_resource.get_local_path()
+
+system.platform.disk = RiscvMmioVirtIO(
+    vio=VirtIOBlock(image=image),
+    interrupt_id=0x8,
+    pio_size=4096,
+    pio_addr=0x10008000,
+)
+
+# Bridge between main system bus and IO bus (for MMIO registers)
+system.bridge = Bridge(delay="50ns")
+system.bridge.mem_side_port = system.iobus.cpu_side_ports
+system.bridge.cpu_side_port = system.membus.mem_side_ports
+system.bridge.ranges = system.platform._off_chip_ranges()
+
+# Attach and configure all IO devices
+system.platform.attachOnChipIO(system.membus)
+system.platform.attachOffChipIO(system.iobus)
+system.platform.attachPlic()
+system.platform.setNumCores(1)
+
+# Cache line size setting required for system components
+system.cache_line_size = 64
+
+# Obtain standard minimal BusyBox Linux workload (Kernel + Bootloader combined ELF)
+linux_resource = obtain_resource(
+    "riscv-bootloader-vmlinux-5.10", resource_version="1.0.0"
+)
+system.workload = RiscvLinux()
+system.workload.object_file = linux_resource.get_local_path()
+
+# Custom DTB (Device Tree Blob) generator
+def generateMemNode(state, mem_range):
+    node = FdtNode(f"memory@{int(mem_range.start):x}")
+    node.append(FdtPropertyStrings("device_type", ["memory"]))
+    node.append(
+        FdtPropertyWords(
+            "reg",
+            state.addrCells(mem_range.start)
+            + state.sizeCells(mem_range.size()),
+        )
+    )
+    return node
+
+def generateDtb(system):
+    state = FdtState(addr_cells=2, size_cells=2, cpu_cells=1)
+    root = FdtNode("/")
+    root.append(state.addrCellsProperty())
+    root.append(state.sizeCellsProperty())
+    root.appendCompatible(["riscv-virtio"])
+
+    for mem_range in system.mem_ranges:
+        root.append(generateMemNode(state, mem_range))
+
+    for node in system.platform.generateDeviceTree(state):
+        if node.get_name() == root.get_name():
+            root.merge(node)
+        else:
+            root.append(node)
+
+    cpus_node = None
+    for sub in root.subdata:
+        if isinstance(sub, FdtNode) and sub.get_name() == "cpus":
+            cpus_node = sub
+            break
+
+    if not cpus_node:
+        cpus_node = FdtNode("cpus")
+        cpus_node.append(FdtPropertyWords("timebase-frequency", [10000000]))
+        root.append(cpus_node)
+
+    cpu_node = FdtNode("cpu@0")
+    cpu_node.append(FdtPropertyStrings("device_type", ["cpu"]))
+    cpu_node.append(FdtPropertyWords("reg", [0]))
+    cpu_node.append(FdtPropertyStrings("mmu-type", ["riscv,sv39"]))
+    cpu_node.append(FdtPropertyStrings("status", ["okay"]))
+    cpu_node.append(FdtPropertyStrings("riscv,isa", ["rv64imafdc"]))
+    cpu_node.append(FdtPropertyWords("clock-frequency", [50000000]))
+    cpu_node.appendCompatible(["riscv"])
+
+    int_node = FdtNode("interrupt-controller")
+    int_state = FdtState(interrupt_cells=1)
+    phandle = int_state.phandle(system.cpu[0])
+
+    int_node.append(int_state.interruptCellsProperty())
+    int_node.append(FdtProperty("interrupt-controller"))
+    int_node.appendCompatible(["riscv,cpu-intc"])
+    int_node.append(FdtPropertyWords("phandle", [phandle]))
+
+    cpu_node.append(int_node)
+    cpus_node.append(cpu_node)
+
+    node = FdtNode("chosen")
+    node.append(FdtPropertyStrings("bootargs", [system.workload.command_line]))
+    node.append(FdtPropertyStrings("stdout-path", ["/soc/uart@10000000"]))
+    root.append(node)
+
+    fdt = Fdt()
+    fdt.add_rootnode(root)
+
+    if not os.path.exists(m5.options.outdir):
+        os.makedirs(m5.options.outdir)
+
+    fdt.writeDtsFile(path.join(m5.options.outdir, "device.dts"))
+    fdt.writeDtbFile(path.join(m5.options.outdir, "device.dtb"))
+
+system.workload.dtb_addr = 0x87E00000
+system.workload.command_line = "console=ttyS0 root=/dev/vda rw"
+generateDtb(system)
+system.workload.dtb_filename = path.join(m5.options.outdir, "device.dtb")
+
+root = Root(full_system=True, system=system)
+
+print("Beginning gem5 Full System simulation with TimingSimpleCPU...")
+m5.instantiate()
+m5.simulate()

@@ -11,3 +11,10 @@ build/
 # Accelerator
 accelerator/libfifo_accel.so
 accelerator/obj_dir/
+
+# Verilate work directory
+cva_verilate/work-ver-core
+
+scratch/riscv-bootloader-*
+
+*.log

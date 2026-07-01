@@ -1,12 +1,5 @@
 # ==============================================================================
-# Makefile for CVA6 RTL Co-simulation in gem5
-# ==============================================================================
-# Coordinates:
-# 1. Installation of the RISC-V GCC toolchain (optional, automated)
-# 2. Verilation of the CVA6 RISC-V core (targets rv64imafdc by default)
-# 3. Compilation of bare-metal assembly tests (e.g. scratch/sum.S)
-# 4. Compilation of the gem5 simulator with CVA6 integration
-# 5. Running the co-simulation or standard timing CPU simulation
+# Master Makefile for CVA6 gem5 Co-simulation Project
 # ==============================================================================
 
 # Parallel compilation jobs
@@ -16,15 +9,9 @@ JOBS ?= $(shell nproc)
 RISCV_DIR = $(CURDIR)/toolchain/xpack-riscv-none-elf-gcc-14.2.0-1
 export RISCV = $(RISCV_DIR)
 
-# Compiler prefix
-RISCV_GCC = $(RISCV)/bin/riscv-none-elf-gcc
-
-# Bare-metal test binary configuration
-ELF_SRC = scratch/sum.S
-ELF_OUT = scratch/sum.elf
-ACCEL_SRC = scratch/test_accel.S
-ACCEL_ELF = scratch/test_accel.elf
-LINKER_SCRIPT = scratch/link.ld
+# Bare-metal test binary output configurations (for run configs)
+ELF_OUT = $(CURDIR)/scratch/sum.elf
+ACCEL_ELF = $(CURDIR)/scratch/test_accel.elf
 
 # gem5 targets and paths
 GEM5_OPT = build/RISCV/gem5.opt
@@ -42,23 +29,36 @@ submodules:
 # 2. Toolchain Target: installs RISC-V GCC toolchain if not present
 toolchain:
 	@if [ ! -d "$(RISCV_DIR)" ]; then \
-		echo "Installing RISC-V toolchain via install_toolchain.sh..."; \
-		./install_toolchain.sh; \
+		echo "Toolchain not found. Starting download and installation..."; \
+		mkdir -p toolchain; \
+		cd toolchain && \
+		URL="https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v14.2.0-1/xpack-riscv-none-elf-gcc-14.2.0-1-linux-x64.tar.gz" && \
+		ARCHIVE="xpack-riscv-none-elf-gcc-14.2.0-1-linux-x64.tar.gz" && \
+		if [ ! -f "$$ARCHIVE" ]; then \
+			echo "Downloading RISC-V GCC Toolchain..."; \
+			if command -v wget >/dev/null 2>&1; then \
+				wget "$$URL" -O "$$ARCHIVE"; \
+			elif command -v curl >/dev/null 2>&1; then \
+				curl -L "$$URL" -o "$$ARCHIVE"; \
+			else \
+				echo "Error: Neither wget nor curl is installed. Please install one of them."; \
+				exit 1; \
+			fi; \
+		fi && \
+		echo "Extracting toolchain..." && \
+		tar -xzf "$$ARCHIVE" && \
+		rm -f "$$ARCHIVE"; \
 	else \
 		echo "Toolchain already installed in $(RISCV_DIR)."; \
 	fi
 
 # 3. Verilate Target: compiles/verilates CVA6 RTL core using Verilator
-verilate: toolchain submodules
-	@echo "Verilating CVA6 core RTL..."
-	$(MAKE) -C cva6 verilate-core RISCV=$(RISCV) NUM_JOBS=$(JOBS) TRACE_FAST=1
+verilate: toolchain
+	$(MAKE) -C cva_verilate verilate JOBS=$(JOBS) RISCV=$(RISCV)
 
 # 4. Elf Target: builds the bare-metal RISC-V binary from sum.S
-elf: $(ELF_OUT)
-
-$(ELF_OUT): $(ELF_SRC) $(LINKER_SCRIPT) toolchain
-	@echo "Compiling RISC-V bare-metal test binary..."
-	$(RISCV_GCC) -march=rv64imafdc -mabi=lp64d -nostartfiles -T $(LINKER_SCRIPT) $(ELF_SRC) -o $(ELF_OUT)
+elf: toolchain
+	$(MAKE) -C scratch elf RISCV=$(RISCV)
 
 # 5. gem5 Target: compiles the gem5 simulator with CVA6 CPU SimObject support
 gem5: verilate
@@ -85,11 +85,8 @@ run-accel-l2: accel-elf accel-so gem5
 	@echo "Running gem5 simulation with CVA6, L2 Cache, and FIFO Accelerator..."
 	./$(GEM5_OPT) configs/cva6/run_accel_l2.py --binary $(ACCEL_ELF)
 
-accel-elf: $(ACCEL_ELF)
-
-$(ACCEL_ELF): $(ACCEL_SRC) $(LINKER_SCRIPT) toolchain
-	@echo "Compiling RISC-V bare-metal accelerator test binary..."
-	$(RISCV_GCC) -march=rv64imafdc -mabi=lp64d -nostartfiles -T $(LINKER_SCRIPT) $(ACCEL_SRC) -o $(ACCEL_ELF)
+accel-elf: toolchain
+	$(MAKE) -C scratch accel-elf RISCV=$(RISCV)
 
 accel-so:
 	@echo "Building accelerator shared library..."
@@ -109,13 +106,10 @@ clean-gem5:
 	rm -rf build/
 
 clean-cva6:
-	@echo "Cleaning CVA6 verilate artifacts..."
-	$(MAKE) -C cva6 clean
-	rm -rf cva6/work-ver-core
+	$(MAKE) -C cva_verilate clean-cva6
 
 clean-elf:
-	@echo "Cleaning RISC-V test binaries..."
-	rm -f $(ELF_OUT) $(ACCEL_ELF)
+	$(MAKE) -C scratch clean-elf
 	$(MAKE) -C accelerator clean
 
 # 9. Help Target: prints usage instructions
@@ -125,7 +119,7 @@ help:
 	@echo "  make submodules    - Initialize and recursively update git submodules"
 	@echo "  make toolchain     - Download and install the portable RISC-V GCC toolchain"
 	@echo "  make verilate      - Verilate the CVA6 core RTL using Verilator"
-	@echo "  make elf           - Compile the bare-metal assembly test in $(ELF_SRC) to ELF"
+	@echo "  make elf           - Compile the bare-metal assembly test in scratch/sum.S to ELF"
 	@echo "  make gem5          - Build the gem5.opt simulator binary with SCons"
 	@echo "  make run-rtl       - Run the gem5 co-simulation using the Verilated CVA6 core"
 	@echo "  make run-rtl-l2    - Run the gem5 co-simulation with CVA6 RTL core and L2 cache"

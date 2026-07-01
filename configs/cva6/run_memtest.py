@@ -121,8 +121,8 @@ system.mem_ctrl.port = system.membus.mem_side_ports
 # Load the compiled bare-metal binary
 system.workload = RiscvBareMetal(bootloader=elf_out)
 
-# Instantiate the simulation root
-root = Root(full_system=False, system=system)
+# Instantiate the simulation root (full_system=True needed for BareMetal workload with standard CPU)
+root = Root(full_system=True, system=system)
 
 # Initialize the SimObjects and build the memory image
 print("Instantiating SimObjects...")
@@ -147,6 +147,8 @@ while current_tick < max_ticks:
     tohost_bytes = system.physProxy.read(tohost_addr, 8)
     tohost_val = int.from_bytes(tohost_bytes, 'little')
     
+    print(f"Simulation ended at Tick: {current_tick}, tohost = {tohost_val}")
+
     if tohost_val != 0:
         exit_cause = f"tohost written with value {tohost_val}"
         break
