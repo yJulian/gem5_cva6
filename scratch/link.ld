@@ -8,4 +8,7 @@ SECTIONS
 
   . = 0x80001000;
   .tohost : { *(.tohost) }
+
+  . = 0x80002000;
+  .output_val : { *(.output_val) }
 }

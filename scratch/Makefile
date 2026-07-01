@@ -14,11 +14,15 @@ ELF_SRC = $(CURDIR)/sum.S
 ELF_OUT = $(CURDIR)/sum.elf
 ACCEL_SRC = $(CURDIR)/test_accel.S
 ACCEL_ELF = $(CURDIR)/test_accel.elf
+FAIL_SUM_SRC = $(CURDIR)/fail_test_sum.S
+FAIL_SUM_ELF = $(CURDIR)/fail_test_sum.elf
+FAIL_ACCEL_SRC = $(CURDIR)/fail_test_accel.S
+FAIL_ACCEL_ELF = $(CURDIR)/fail_test_accel.elf
 LINKER_SCRIPT = $(CURDIR)/link.ld
 
-.PHONY: all elf accel-elf clean-elf
+.PHONY: all elf accel-elf fail-test-elf fail-test-accel-elf clean-elf
 
-all: elf accel-elf
+all: elf accel-elf fail-test-elf fail-test-accel-elf
 
 elf: $(ELF_OUT)
 
@@ -32,6 +36,18 @@ $(ACCEL_ELF): $(ACCEL_SRC) $(LINKER_SCRIPT)
 	@echo "Compiling RISC-V bare-metal accelerator test binary..."
 	$(RISCV_GCC) -march=rv64imafdc -mabi=lp64d -nostartfiles -T $(LINKER_SCRIPT) $(ACCEL_SRC) -o $(ACCEL_ELF)
 
+fail-test-elf: $(FAIL_SUM_ELF)
+
+$(FAIL_SUM_ELF): $(FAIL_SUM_SRC) $(LINKER_SCRIPT)
+	@echo "Compiling RISC-V intentional-failure sum test binary..."
+	$(RISCV_GCC) -march=rv64imafdc -mabi=lp64d -nostartfiles -T $(LINKER_SCRIPT) $(FAIL_SUM_SRC) -o $(FAIL_SUM_ELF)
+
+fail-test-accel-elf: $(FAIL_ACCEL_ELF)
+
+$(FAIL_ACCEL_ELF): $(FAIL_ACCEL_SRC) $(LINKER_SCRIPT)
+	@echo "Compiling RISC-V intentional-failure accel test binary..."
+	$(RISCV_GCC) -march=rv64imafdc -mabi=lp64d -nostartfiles -T $(LINKER_SCRIPT) $(FAIL_ACCEL_SRC) -o $(FAIL_ACCEL_ELF)
+
 clean-elf:
 	@echo "Cleaning RISC-V test binaries..."
-	rm -f $(ELF_OUT) $(ACCEL_ELF)
+	rm -f $(ELF_OUT) $(ACCEL_ELF) $(FAIL_SUM_ELF) $(FAIL_ACCEL_ELF)

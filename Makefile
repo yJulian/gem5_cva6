@@ -12,11 +12,13 @@ export RISCV = $(RISCV_DIR)
 # Bare-metal test binary output configurations (for run configs)
 ELF_OUT = $(CURDIR)/scratch/sum.elf
 ACCEL_ELF = $(CURDIR)/scratch/test_accel.elf
+FAIL_SUM_ELF = $(CURDIR)/scratch/fail_test_sum.elf
+FAIL_ACCEL_ELF = $(CURDIR)/scratch/fail_test_accel.elf
 
 # gem5 targets and paths
 GEM5_OPT = build/RISCV/gem5.opt
 
-.PHONY: all toolchain submodules verilate elf gem5 run-rtl run-rtl-l2 run-accel-l2 run-gem5 clean clean-gem5 clean-cva6 clean-elf help run-test-accel accel-elf accel-so
+.PHONY: all toolchain submodules verilate elf gem5 run-rtl run-rtl-l2 run-accel-l2 run-gem5 clean clean-gem5 clean-cva6 clean-elf help run-test-accel accel-elf accel-so fail-test-elf fail-test-accel-elf run-fail-test run-fail-accel
 
 # Default target builds everything
 all: toolchain submodules verilate elf gem5
@@ -92,6 +94,22 @@ accel-so:
 	@echo "Building accelerator shared library..."
 	$(MAKE) -C accelerator
 
+fail-test-elf: toolchain
+	$(MAKE) -C scratch fail-test-elf RISCV=$(RISCV)
+
+fail-test-accel-elf: toolchain
+	$(MAKE) -C scratch fail-test-accel-elf RISCV=$(RISCV)
+
+# 6d. Run Intentional Failure Test (sum): verifies FAILURE path for sum test
+run-fail-test: fail-test-elf gem5
+	@echo "Running INTENTIONAL FAILURE TEST (sum) -- Expected: FAILURE (tohost=3)"
+	./$(GEM5_OPT) configs/cva6/run_fail_test.py --binary $(FAIL_SUM_ELF)
+
+# 6e. Run Intentional Failure Test (accel): verifies FAILURE path for accelerator test
+run-fail-accel: fail-test-accel-elf accel-so gem5
+	@echo "Running INTENTIONAL FAILURE TEST (accel) -- Expected: FAILURE (tohost=3)"
+	./$(GEM5_OPT) configs/cva6/run_fail_accel.py --binary $(FAIL_ACCEL_ELF)
+
 # 7. Run gem5 Target: runs standard timing simulation in gem5 (no RTL)
 run-gem5: elf gem5
 	@echo "Running gem5 simulation with TimingSimpleCPU..."
@@ -124,6 +142,8 @@ help:
 	@echo "  make run-rtl       - Run the gem5 co-simulation using the Verilated CVA6 core"
 	@echo "  make run-rtl-l2    - Run the gem5 co-simulation with CVA6 RTL core and L2 cache"
 	@echo "  make run-accel-l2  - Run the gem5 co-simulation with CVA6 RTL core, L2 cache, and FIFO Accelerator"
+	@echo "  make run-fail-test  - Run the intentional FAILURE test for sum (verifies failure detection)"
+	@echo "  make run-fail-accel - Run the intentional FAILURE test for accel (verifies failure detection)"
 	@echo "  make run-gem5      - Run the standard gem5 TimingSimpleCPU simulation"
 	@echo "  make clean         - Delete all built files and build directories"
 	@echo "  make help          - Display this help message"

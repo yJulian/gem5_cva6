@@ -155,16 +155,23 @@ while current_tick < max_ticks:
         
     if exit_event.getCause() != "simulate() limit reached":
         exit_cause = exit_event.getCause()
+        # Re-read tohost: the store may have been committed just before/during
+        # the ebreak exit event (fence + sd pipeline delay in CVA6 RTL).
+        tohost_bytes = system.physProxy.read(tohost_addr, 8)
+        tohost_val = int.from_bytes(tohost_bytes, 'little')
         break
 
 print("\n============================================")
 if tohost_val == 1:
     print(f"CVA6 Memory Test finished! tohost = {tohost_val} (exit code = 0)")
     print(f"SUCCESS: Successfully wrote and verified {args.num_words} words in RAM!")
+    sys.exit(0)
 elif tohost_val != 0:
     print(f"CVA6 Memory Test finished! tohost = {tohost_val} (exit code = {tohost_val >> 1 if tohost_val > 1 else -1})")
     print("FAILURE: Memory verification failed or program crashed!")
+    sys.exit(tohost_val >> 1 if tohost_val > 1 else 1)
 else:
     print(f"Simulation ended because: {exit_cause}")
+    sys.exit(1)
 print(f"Total simulated ticks: {current_tick}")
 print("============================================\n")
