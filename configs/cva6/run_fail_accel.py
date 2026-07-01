@@ -31,6 +31,12 @@ parser.add_argument(
     default="m5out/cva6_trace.vcd",
     help="Filename/path for the output VCD trace file",
 )
+parser.add_argument(
+    "--rtl-library",
+    type=str,
+    default="cva_verilate/libVcva6_top.so",
+    help="Path to the RTL shared library",
+)
 args = parser.parse_args()
 
 # Create the system
@@ -51,7 +57,7 @@ system.membus = SystemXBar()
 system.system_port = system.membus.cpu_side_ports
 
 # Instantiate our custom CVA6 RTL CPU
-system.cpu = CVA6RtlCPU()
+system.cpu = RtlCPU(rtl_library=args.rtl_library)
 if args.trace:
     system.cpu.trace_enable = True
     system.cpu.trace_file = args.trace_file

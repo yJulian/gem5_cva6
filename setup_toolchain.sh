@@ -81,7 +81,7 @@ install_toolchain() {
 # Verilate the CVA6 core if the verilated library does not exist
 verilate_cva6() {
     echo "Checking Verilated CVA6 core..."
-    local V_LIB="${WORKSPACE_DIR}/cva_verilate/work-ver-core/libVcva6_top.so"
+    local V_LIB="${WORKSPACE_DIR}/cva_verilate/libVcva6_top.so"
     if [ ! -f "${V_LIB}" ]; then
         echo "Verilated CVA6 library not found. Running verilation..."
         make verilate

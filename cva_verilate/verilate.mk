@@ -38,12 +38,12 @@ verilate-core:
                     -CFLAGS "-fPIC" \
                     --Mdir work-ver-core -O3
 	cd work-ver-core && $(MAKE) -j${NUM_JOBS} -f Vcva6_top.mk
-	g++ -O3 -shared -fPIC -o work-ver-core/libVcva6_top.so \
+	g++ -O3 -shared -fPIC -o ../../cva_verilate/libVcva6_top.so \
 		-I/usr/local/share/verilator/include \
 		-I/usr/local/share/verilator/include/vltstd \
 		-Iwork-ver-core \
-		-I../../gem5/src/cpu/rtl/axi/cva6 \
+		-I../../gem5/src/cpu/rtl/axi \
 		$(if $(TRACE_FAST),-DVM_TRACE=1) \
 		$(if $(TRACE_COMPACT),-DVM_TRACE=1 -DVM_TRACE_FST=1) \
-		../../gem5/src/cpu/rtl/axi/cva6/cva6_rtl_core_impl.cc \
+		../../cva_verilate/cva6_rtl_core_impl.cc \
 		-Wl,--whole-archive work-ver-core/libVcva6_top.a work-ver-core/libverilated.a -Wl,--no-whole-archive

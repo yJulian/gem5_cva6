@@ -78,7 +78,7 @@ system.membus = SystemXBar()
 system.system_port = system.membus.cpu_side_ports
 
 # Instantiate our custom CVA6 RTL CPU
-system.cpu = CVA6RtlCPU()
+system.cpu = RtlCPU()
 if args.trace:
     system.cpu.trace_enable = True
     system.cpu.trace_file = args.trace_file

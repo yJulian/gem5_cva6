@@ -30,3 +30,4 @@ clean-cva6:
 	$(MAKE) -C $(REPO_DIR)/ext/cva6 clean
 	rm -rf $(REPO_DIR)/ext/cva6/work-ver-core
 	rm -rf $(CURDIR)/work-ver-core
+	rm -f $(CURDIR)/libVcva6_top.so

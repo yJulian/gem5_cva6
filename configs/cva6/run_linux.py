@@ -64,7 +64,7 @@ system.system_port = system.membus.cpu_side_ports
 
 # Instantiate our custom CVA6 RTL CPU
 # Note: Clint and Plic autogeneration code requires system.cpu to be an iterable list
-system.cpu = [CVA6RtlCPU()]
+system.cpu = [RtlCPU()]
 system.cpu[0].cpu_id = 0
 
 # Set up BaseCPU parameters for ThreadContext and Interrupt routing
@@ -184,7 +184,7 @@ def generateDtb(system):
         cpus_node.append(FdtPropertyWords("timebase-frequency", [10000000]))
         root.append(cpus_node)
 
-    # Construct CVA6 CPU Node manually since CVA6RtlCPU lacks autogeneration helpers
+    # Construct CVA6 CPU Node manually since RtlCPU lacks autogeneration helpers
     cpu_node = FdtNode("cpu@0")
     cpu_node.append(FdtPropertyStrings("device_type", ["cpu"]))
     cpu_node.append(FdtPropertyWords("reg", [0]))
