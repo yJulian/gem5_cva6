@@ -24,7 +24,7 @@ $(SO_TARGET): $(SV_SRC) $(WRAPPER_SRC)
 		-I$(VERILATOR_ROOT)/include \
 		-I$(VERILATOR_ROOT)/include/vltstd \
 		-Iobj_dir \
-		-I../gem5/src/cpu/cva6 \
+		-I../gem5/src/test_objects/fifo \
 		$(WRAPPER_SRC) \
 		$(VERILATOR_ROOT)/include/verilated.cpp \
 		$(VERILATOR_ROOT)/include/verilated_vcd_c.cpp \
